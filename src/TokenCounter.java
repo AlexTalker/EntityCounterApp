@@ -1,11 +1,9 @@
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.Reader;
-import java.io.FileReader;
+import java.net.URL;
+import java.net.URI;
+import java.io.*;
 import java.util.Map;
 
 /**
@@ -28,14 +26,22 @@ public class TokenCounter {
         entities = trie;
     }
     // Try make code clear
-    private final char TAB = '\t';
-    private final char SPACE = ' ';
-    private final char LESS_THAN = '<';
-    private final char AMPERSAND = '&';
-    private final char SEMICOLON = ';';
+    private final static char TAB = '\t';
+    private final static char SPACE = ' ';
+    private final static char LESS_THAN = '<';
+    private final static char GREATHER_THAN = '>';
+    private final static char AMPERSAND = '&';
+    private final static char SEMICOLON = ';';
 
-    private final short ASCII_DIGIT = 0b01;
-    private final short ASCII_HEX_DIGIT = 0b10;
+    private final static short ASCII_DIGIT = 0b01;
+    private final static short ASCII_HEX_DIGIT = 0b10;
+
+    private enum STATES{
+        DATA, OPEN_TAG,// TODO: <!-- ... -->
+        BEFORE_ATTRIBUTE, ATTRIBUTE,
+        DOUBLE_QUOTES, SINGLE_QUOTES,
+        ATTRIBUTE_VALUE, CLOSING_TAG
+    };
 
     private long chars_counter;
     private long entities_counter;
@@ -59,7 +65,9 @@ public class TokenCounter {
             int segment_length = 0;
             int correct_segment_length = 0;
             Trie.TrieNode t = entities.getRoot();
+            STATES state = STATES.DATA;
             for(char c: s.toCharArray()){
+                state = switch_state(state, c);
                 switch (c){
                     case SPACE:
                     case TAB:
@@ -67,7 +75,7 @@ public class TokenCounter {
                     case SEMICOLON:
                     case AMPERSAND:
                         if(!ZERO(segment_length)){
-                            if(c == SEMICOLON && !ZERO(correct_segment_length) && (correct_segment_length == segment_length)){
+                            if(c == SEMICOLON && !ZERO(correct_segment_length) && (correct_segment_length == segment_length)) {
                                 correct_segment_length++;
                             }
                             segment_length++;
@@ -127,7 +135,17 @@ public class TokenCounter {
                     // is out of Unicode codepoints
                     // Since anyway REPLACEMENT CHARACTER should be return
                     if(!ZERO(correct_segment_length)){
-                        entities_counter++;
+                        switch (state){
+                            case ATTRIBUTE_VALUE:
+                            case DOUBLE_QUOTES:
+                            case SINGLE_QUOTES:
+                                if(c != SEMICOLON) {
+                                    correct_segment_length = 0;
+                                    break;
+                                }
+                            default:
+                                entities_counter++;
+                        }
                     }
                     chars_counter += segment_length - correct_segment_length;
                     segment_finished = false;
@@ -142,8 +160,72 @@ public class TokenCounter {
         }
     }
 
+    private static STATES switch_state(STATES previous, char c){
+        STATES next = previous;
+        switch (c){
+            case TAB:
+            case SPACE:
+                switch (previous){
+                    case ATTRIBUTE_VALUE:
+                    case OPEN_TAG:
+                        next = STATES.BEFORE_ATTRIBUTE;
+                }
+                break;
+            case LESS_THAN:
+                if(previous == STATES.DATA){
+                    next = STATES.OPEN_TAG;
+                }
+                break;
+            case GREATHER_THAN:
+                switch (previous){
+                    case BEFORE_ATTRIBUTE: // DIRTY!!!
+                    case OPEN_TAG:
+                    case CLOSING_TAG:
+                    case ATTRIBUTE_VALUE:
+                        next = STATES.DATA;
+                }
+                break;
+            case '/':
+                switch (previous){
+                    case OPEN_TAG:
+                    case BEFORE_ATTRIBUTE:
+                        next = STATES.CLOSING_TAG;
+                }
+                break;
+            case '=':
+                if(previous == STATES.ATTRIBUTE){
+                    next = STATES.ATTRIBUTE_VALUE;
+                }
+                break;
+            case '"': // fix '
+                switch (previous){
+                    case ATTRIBUTE_VALUE:
+                        next = STATES.DOUBLE_QUOTES;
+                    case DOUBLE_QUOTES:
+                        next = STATES.ATTRIBUTE_VALUE;
+                }
+                break;
+            case '\'':
+                switch (previous){
+                    case ATTRIBUTE_VALUE:
+                        next = STATES.SINGLE_QUOTES;
+                    case SINGLE_QUOTES:
+                        next = STATES.ATTRIBUTE_VALUE;
+                }
+                break;
+            default:
+                if((('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9'))
+                        && previous == STATES.BEFORE_ATTRIBUTE){
+                    next = STATES.ATTRIBUTE;
+                }
+        }
+        return next;
+    }
+
     public static void main(String[] args) throws Exception {
-        TokenCounter tc = new TokenCounter(new FileReader(args[0]));
+        URL url = new File(args[0]).toURI().toURL();
+        BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()));
+        TokenCounter tc = new TokenCounter(in);
         System.out.println(tc.chars_counter);
         System.out.println(tc.entities_counter);
     }
