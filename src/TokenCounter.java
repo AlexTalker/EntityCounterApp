@@ -2,7 +2,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.net.URL;
-import java.net.URI;
 import java.io.*;
 import java.util.Map;
 
@@ -29,7 +28,7 @@ public class TokenCounter {
     private final static char TAB = '\t';
     private final static char SPACE = ' ';
     private final static char LESS_THAN = '<';
-    private final static char GREATHER_THAN = '>';
+    private final static char GREATER_THAN = '>';
     private final static char AMPERSAND = '&';
     private final static char SEMICOLON = ';';
 
@@ -45,10 +44,15 @@ public class TokenCounter {
 
     private long chars_counter;
     private long entities_counter;
+    private long entities_chars_counter;
 
     private final BufferedReader source;
 
-    public TokenCounter(Reader in) throws Exception {
+    public TokenCounter(InputStream in) throws IOException {
+        this(new InputStreamReader(in));
+    }
+
+    public TokenCounter(Reader in) throws IOException {
         source = new BufferedReader(in);
         counter();
     }
@@ -65,7 +69,7 @@ public class TokenCounter {
             int segment_length = 0;
             int correct_segment_length = 0;
             Trie.TrieNode t = entities.getRoot();
-            STATES state = STATES.DATA;
+            STATES state = STATES.DATA;// Partially dirty
             for(char c: s.toCharArray()){
                 state = switch_state(state, c);
                 switch (c){
@@ -148,6 +152,7 @@ public class TokenCounter {
                         }
                     }
                     chars_counter += segment_length - correct_segment_length;
+                    entities_chars_counter += correct_segment_length;
                     segment_finished = false;
                     correct_segment_length = 0;
                     segment_length = 0;
@@ -176,7 +181,7 @@ public class TokenCounter {
                     next = STATES.OPEN_TAG;
                 }
                 break;
-            case GREATHER_THAN:
+            case GREATER_THAN:
                 switch (previous){
                     case BEFORE_ATTRIBUTE: // DIRTY!!!
                     case OPEN_TAG:
@@ -222,6 +227,16 @@ public class TokenCounter {
         return next;
     }
 
+    @Override
+    public String toString(){
+        return String.format("Entities=%d, Other=%d, Summary=%d",
+                entities_counter, chars_counter, chars_counter + entities_chars_counter);
+    }
+
+    /**
+     * Simple test code for the class
+     * Execute in way: java TokenCounter file.html
+     */
     public static void main(String[] args) throws Exception {
         URL url = new File(args[0]).toURI().toURL();
         BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()));
