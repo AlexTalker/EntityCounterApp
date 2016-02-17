@@ -37,6 +37,9 @@ public class TokenCounter {
 
     private enum STATES{
         DATA, OPEN_TAG,// TODO: <!-- ... -->
+        TAG_NAME, BOGUS_COMMENT,
+        MARKUP_DECLARATION, COMMENT_START,
+        COMMENT, COMMENT_END_DASH, COMMENT_END,
         BEFORE_ATTRIBUTE, ATTRIBUTE,
         DOUBLE_QUOTES, SINGLE_QUOTES,
         ATTRIBUTE_VALUE, CLOSING_TAG
@@ -140,6 +143,10 @@ public class TokenCounter {
                     // Since anyway REPLACEMENT CHARACTER should be return
                     if(!ZERO(correct_segment_length)){
                         switch (state){
+                            case BOGUS_COMMENT:
+                            case COMMENT:
+                                correct_segment_length = 0;
+                                break;
                             case ATTRIBUTE_VALUE:
                             case DOUBLE_QUOTES:
                             case SINGLE_QUOTES:
@@ -166,13 +173,21 @@ public class TokenCounter {
     }
 
     private static STATES switch_state(STATES previous, char c){
+        if((previous == STATES.COMMENT_END && c != GREATER_THAN)
+                || (previous == STATES.COMMENT_END_DASH && c != '-')){
+            previous = STATES.COMMENT;
+        }
+        if((previous == STATES.COMMENT_START || previous == STATES.MARKUP_DECLARATION)
+                && c != '-'){
+            previous = STATES.BOGUS_COMMENT;// Ignore !DOCTYPE case to minimize mess
+        }
         STATES next = previous;
         switch (c){
             case TAB:
             case SPACE:
                 switch (previous){
                     case ATTRIBUTE_VALUE:
-                    case OPEN_TAG:
+                    case TAG_NAME:
                         next = STATES.BEFORE_ATTRIBUTE;
                 }
                 break;
@@ -181,12 +196,35 @@ public class TokenCounter {
                     next = STATES.OPEN_TAG;
                 }
                 break;
+            case '!':
+                if(previous == STATES.OPEN_TAG){
+                    next = STATES.MARKUP_DECLARATION;
+                }
+                break;
+            case '-':
+                switch (previous){
+                    case COMMENT_END_DASH:
+                        next = STATES.COMMENT_END;
+                        break;
+                    case COMMENT:
+                        next = STATES.COMMENT_END_DASH;
+                        break;
+                    case COMMENT_START:
+                        next = STATES.COMMENT;
+                        break;
+                    case MARKUP_DECLARATION:
+                        next = STATES.COMMENT_START;
+                        break;
+                }
+                break;
             case GREATER_THAN:
                 switch (previous){
                     case BEFORE_ATTRIBUTE: // DIRTY!!!
                     case OPEN_TAG:
                     case CLOSING_TAG:
                     case ATTRIBUTE_VALUE:
+                    case COMMENT_END:
+                    case BOGUS_COMMENT:
                         next = STATES.DATA;
                 }
                 break;
@@ -206,6 +244,7 @@ public class TokenCounter {
                 switch (previous){
                     case ATTRIBUTE_VALUE:
                         next = STATES.DOUBLE_QUOTES;
+                        break;
                     case DOUBLE_QUOTES:
                         next = STATES.ATTRIBUTE_VALUE;
                 }
@@ -214,14 +253,19 @@ public class TokenCounter {
                 switch (previous){
                     case ATTRIBUTE_VALUE:
                         next = STATES.SINGLE_QUOTES;
+                        break;
                     case SINGLE_QUOTES:
                         next = STATES.ATTRIBUTE_VALUE;
                 }
                 break;
             default:
-                if((('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9'))
-                        && previous == STATES.BEFORE_ATTRIBUTE){
-                    next = STATES.ATTRIBUTE;
+                if((('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9'))){
+                    if(previous == STATES.BEFORE_ATTRIBUTE) {
+                        next = STATES.ATTRIBUTE;
+                    }
+                    if(previous == STATES.OPEN_TAG){
+                        next = STATES.TAG_NAME;
+                    }
                 }
         }
         return next;
