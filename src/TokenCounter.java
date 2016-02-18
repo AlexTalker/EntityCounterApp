@@ -66,13 +66,13 @@ public class TokenCounter {
 
     private void counter() throws IOException {
         String s;
+        STATES state = STATES.DATA;// Partially dirty
         while((s = source.readLine()) != null){
             short collect_number = 0;
             boolean segment_finished = false;
             int segment_length = 0;
             int correct_segment_length = 0;
             Trie.TrieNode t = entities.getRoot();
-            STATES state = STATES.DATA;// Partially dirty
             for(char c: s.toCharArray()){
                 state = switch_state(state, c);
                 switch (c){
@@ -266,6 +266,12 @@ public class TokenCounter {
                     if(previous == STATES.OPEN_TAG){
                         next = STATES.TAG_NAME;
                     }
+                }
+                else if(previous == STATES.OPEN_TAG){
+                    if(c == '?')// Yet one way to BOGUS
+                        next = STATES.BOGUS_COMMENT;
+                    else
+                        next = STATES.DATA;
                 }
         }
         return next;
