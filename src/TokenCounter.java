@@ -6,7 +6,8 @@ import java.io.*;
 import java.util.Map;
 
 /**
- * Created by alx on 13.02.16.
+ * Calculates correct HTML entities from InputStream or Reader
+ * and other statistic by them.
  */
 public class TokenCounter {
 
@@ -51,10 +52,20 @@ public class TokenCounter {
 
     private final BufferedReader source;
 
+    /**
+     * Construct object from InputStream
+     * @param in Source stream
+     * @throws IOException
+     */
     public TokenCounter(InputStream in) throws IOException {
         this(new InputStreamReader(in));
     }
 
+    /**
+     * Construct object from Reader
+     * @param in Source Reader
+     * @throws IOException
+     */
     public TokenCounter(Reader in) throws IOException {
         source = new BufferedReader(in);
         counter();
@@ -64,6 +75,11 @@ public class TokenCounter {
         return v == 0;
     }
 
+    /**
+     * Simple HTML tokenizer implementation to count HTML entities just as
+     * modern browsers do.
+     * @throws IOException if error happens during walk through input
+     */
     private void counter() throws IOException {
         String s;
         STATES state = STATES.DATA;// Partially dirty
@@ -171,15 +187,39 @@ public class TokenCounter {
             chars_counter++;// append '\n' to summary
         }
     }
-
+    /**
+     * Return current tokenizer state inside HTML document
+     * Required to handle HTML entities in attribute values and comments properly
+     * @see <a href='http://www.w3.org/TR/html5/syntax.html#additional-allowed-character'> HTML5 Syntax</a>
+     */
     private static STATES switch_state(STATES previous, char c){
+        /*
+        Order of parsing is: DATA -> OPEN_TAG ->
+        if ! found, then MARKUP_DECLARATION
+        otherwise if ? found, then BOGUS_COMMENT state till next '>'
+        otherwise if correct TAG_NAME is found, then BEFORE_ATTRIBUTE
+        otherwise stay the same
+        if MARKUP_DECLARATION and next isn't double '--'(MARKUP_DECLARATION and
+        COMMENT_START states), then it's BOGUS_COMMENT again.
+        otherwise, it's COMMENT state till next '-->'(COMMENT_END_DASH, COMMENT_END, DATA),
+        then turn back to DATA
+        if while BEFORE_ATTRIBUTE meet correct attribute name, then it's ATTRIBUTE
+        if = found in ATTRIBUTE state, then it's ATTRIBUTE_VALUE
+        if in ATTRIBUTE_VALUE found "(DOUBLE_QUOTES) or '(SINGLE_QUOTES) then
+        corresponding state assign till next same element is found
+        otherwise ATTRIBUTE_VALUE till SPACE or TAB, then BEFORE_ATTRIBUTE again
+        if in BEFORE_ATTRIBUTE is found '/' then it's CLOSING_TAG
+        and any next meet '>' will close the tag. (This is possibly bug and must be fixed)
+        * */
         if((previous == STATES.COMMENT_END && c != GREATER_THAN)
                 || (previous == STATES.COMMENT_END_DASH && c != '-')){
             previous = STATES.COMMENT;
+            return previous;
         }
         if((previous == STATES.COMMENT_START || previous == STATES.MARKUP_DECLARATION)
                 && c != '-'){
             previous = STATES.BOGUS_COMMENT;// Ignore !DOCTYPE case to minimize mess
+            return previous;
         }
         STATES next = previous;
         switch (c){
@@ -277,10 +317,21 @@ public class TokenCounter {
         return next;
     }
 
+    /**
+     * Return representation for calculated statistics in the way:
+     * "Entities=42 [ 5.430000%], ratio: 0.130868"
+     * where 42 is number of correct entities that was found
+     * 5.430000 -- their percent to all chars in file
+     * 0.130868-- ratio summary number of charachters in HTML entities in
+     * the file to summary length of the file.
+     * @return Formatted object representation.
+     */
     @Override
     public String toString(){
-        return String.format("Entities=%d, Other=%d, Summary=%d",
-                entities_counter, chars_counter, chars_counter + entities_chars_counter);
+        return String.format("Entities=%d [ %f%% ], ratio: %f ",
+                entities_counter,
+                entities_counter * 100 / ( (chars_counter + entities_chars_counter) * 1.0 ),
+                entities_chars_counter / ( chars_counter * 1.0 ));
     }
 
     /**

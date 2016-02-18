@@ -8,15 +8,20 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
+// TODO: Possibly merge with TokenCounter
 /**
- * Created by alx on 17.02.16.
+ * Prepare Runnable object to handle console arguments with TokenCounter
+ *
+ * @see TokenCounter
  */
 public class TokenCounterTask implements Runnable {
 
     private String path;
     private StringBuilder out = new StringBuilder();
-
+/**
+ * Construct new task to handle file(s) by path.
+ * @param path: path to file or directory, or URL otherwise
+ * */
     public TokenCounterTask(String path) {
         this.path = path;
     }
@@ -27,7 +32,6 @@ public class TokenCounterTask implements Runnable {
 
     @Override
     public void run() {
-        InputStream in;
         long start = System.currentTimeMillis();
         try {
             URL url;
@@ -36,15 +40,17 @@ public class TokenCounterTask implements Runnable {
             } catch (MalformedURLException e) {
                 url = new File(path).toURI().toURL();
             }
-            in = url.openStream();
-            print(new TokenCounter(in).toString());
+            try(InputStream in = url.openStream()) {
+                print(new TokenCounter(in).toString());
+            }
         } catch (MalformedURLException error) {
             print("Fail to understand the path.");
         } catch (IOException e) {
             print("Fail to read the source.");
         } finally {
             synchronized (System.out) {
-                print(String.format("Finished in %s milliseconds.", System.currentTimeMillis() - start));
+                print(String.format("Finished in %s seconds.",
+                        ( System.currentTimeMillis() - start) / 1000.0 ));
                 System.out.print(out.toString());
             }
         }
@@ -63,11 +69,17 @@ public class TokenCounterTask implements Runnable {
             }
         };
         Runtime.getRuntime().addShutdownHook(hook);
-        for (String task : args) {
-            tasks.add(executorService.submit(new TokenCounterTask(task)));
+        try {
+            for (String task : args) {
+                tasks.add(executorService.submit(new TokenCounterTask(task)));
+            }
+            for (Future<?> task : tasks) {
+                task.get();
+            }
         }
-        for (Future<?> task : tasks) {
-            task.get();
+        finally { // This is repetative but required to successful finish.
+            hook.run();
         }
+
     }
 }

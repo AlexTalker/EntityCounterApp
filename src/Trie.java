@@ -5,16 +5,30 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
-
+// TODO: possibly, make immutable for perfomance reasons
+/**
+ * Simple implementation of prefix tree.
+ */
 public class Trie {
+    /**
+     * Represent tree node object
+     */
     public static class TrieNode {
         boolean leaf;
         Map<Character, TrieNode> children = new TreeMap<>();
 
+        /**
+         *
+         * @param c character to search in child of the node.
+         * @return null if there's no child or another node.
+         */
         public TrieNode getChild(Character c){
             return children.get(c);
         }
 
+        /**
+         * @return true if the node is leaf. Doesn't mean it cannot have children.
+         */
         public boolean isLeaf(){
             return leaf;
         }
@@ -41,6 +55,9 @@ public class Trie {
         v.leaf = true;
     }
 
+    /**
+     * @return root of the tree
+     */
     public TrieNode getRoot(){
         return root;
     }
