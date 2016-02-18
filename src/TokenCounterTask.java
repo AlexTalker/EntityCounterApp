@@ -80,7 +80,7 @@ public class TokenCounterTask implements Runnable {
                 }
                 url = file.toURI().toURL();
             }
-            try(InputStream in = url.openStream()) {
+            try(InputStream in = url.openStream()) { // This will fail on HTTP connections either than 200 OK
                 print(new TokenCounter(in).toString());
             }
         } catch (SecurityException error) {

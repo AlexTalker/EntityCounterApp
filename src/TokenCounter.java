@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URL;
 import java.io.*;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Calculates correct HTML entities from InputStream or Reader
@@ -90,7 +91,6 @@ public class TokenCounter {
             int correct_segment_length = 0;
             Trie.TrieNode t = entities.getRoot();
             for(char c: s.toCharArray()){
-                state = switch_state(state, c);
                 switch (c){
                     case SPACE:
                     case TAB:
@@ -153,16 +153,18 @@ public class TokenCounter {
                                 }
                         }
                 }
+                switch (state) {
+                    case BOGUS_COMMENT:
+                    case COMMENT:
+                        correct_segment_length = 0;
+                        break;
+                }
                 if(segment_finished){
                     // No check that HEX or decimal number
                     // is out of Unicode codepoints
                     // Since anyway REPLACEMENT CHARACTER should be return
                     if(!ZERO(correct_segment_length)){
                         switch (state){
-                            case BOGUS_COMMENT:
-                            case COMMENT:
-                                correct_segment_length = 0;
-                                break;
                             case ATTRIBUTE_VALUE:
                             case DOUBLE_QUOTES:
                             case SINGLE_QUOTES:
@@ -181,6 +183,18 @@ public class TokenCounter {
                     segment_length = 0;
                     collect_number = 0;
                     t = entities.getRoot();
+                }
+                state = switch_state(state, c);
+            }
+            if(!ZERO(correct_segment_length)){// Might be wrong
+                switch (state){
+                    case ATTRIBUTE_VALUE:
+                    case DOUBLE_QUOTES:
+                    case SINGLE_QUOTES:
+                        correct_segment_length = 0;
+                        break;
+                    default:
+                        entities_counter++;
                 }
             }
             chars_counter += segment_length - correct_segment_length;
@@ -261,6 +275,7 @@ public class TokenCounter {
                 switch (previous){
                     case BEFORE_ATTRIBUTE: // DIRTY!!!
                     case OPEN_TAG:
+                    case TAG_NAME:
                     case CLOSING_TAG:
                     case ATTRIBUTE_VALUE:
                     case COMMENT_END:
@@ -330,7 +345,7 @@ public class TokenCounter {
     public String toString(){
         return String.format("Entities=%d [ %f%% ], ratio: %f ",
                 entities_counter,
-                entities_counter * 100 / ( (chars_counter + entities_chars_counter) * 1.0 ),
+                entities_counter * 100 / ( (chars_counter + entities_counter) * 1.0 ),
                 entities_chars_counter / ( chars_counter * 1.0 ));
     }
 

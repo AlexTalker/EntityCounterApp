@@ -12,14 +12,22 @@
     <p>&alpha;</p>
     <p>Or is it coming back around?</p>
     <p>&#GGGGG</p>
+    <!-- Strange, webkit stop parse after line above -->
     <p>&#xFFf</p>
+    <!-- Strange, standard tells that this must result in 'alpha' as one char and 'a;' but ff doesn't think so -->
     <p>&alphaa;</p>
     <p>&&;</p>
     <!-- &alpha; -->
     <! lol it &alpha;>
     <raw> &alpha; &h; </raw>
-    <shit foo=&alpha; ></shit>
-    <crap foo=&beta>
+    <one foo=&alpha; ></one>
+    <two foo=&beta >
+    <two foo=&beta>&delta;
+    &delta
+    &delt
+    &dq
+    <!-- miss me &delta
+    -->
     <tetra foo=&beta />
 
     <a href=/&alphaa>Yahoo!</a>
