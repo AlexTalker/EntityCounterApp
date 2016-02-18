@@ -81,7 +81,11 @@ public class TokenCounterTask implements Runnable {
                 url = file.toURI().toURL();
             }
             try(InputStream in = url.openStream()) { // This will fail on HTTP connections either than 200 OK
-                print(new TokenCounter(in).toString());
+                TokenCounter tokenCounter = new TokenCounter(in);
+                print(tokenCounter.toString());
+                for(String error: tokenCounter.errors){
+                    print(error);
+                }
             }
         } catch (SecurityException error) {
             print("Fail because no access to read the file or directory.");

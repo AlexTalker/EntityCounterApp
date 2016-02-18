@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URL;
 import java.io.*;
 import java.util.Map;
-import java.util.function.Consumer;
-
+import java.util.List;
+import java.util.LinkedList;
 /**
  * Calculates correct HTML entities from InputStream or Reader
  * and other statistic by them.
@@ -53,6 +53,8 @@ public class TokenCounter {
 
     private final BufferedReader source;
 
+    public final List<String> errors = new LinkedList<>();
+
     /**
      * Construct object from InputStream
      * @param in Source stream
@@ -76,6 +78,26 @@ public class TokenCounter {
         return v == 0;
     }
 
+    private void error(long line, long column, String s){
+        errors.add(String.format("[parse error] %d:%d %s", line, column, s));
+    }
+
+    private boolean validate_number(int collect_numbers, String number){
+        try{
+            int n;
+            if(!ZERO(collect_numbers & ASCII_HEX_DIGIT))
+                n = Integer.parseInt(number, 16);
+            else
+                n = Integer.parseInt(number);
+            return  !( (0xD800 <= n && n <= 0xDFFF)
+                    || (0x10FFFF < n)
+            );
+        }
+        catch (NumberFormatException e){
+            return false;
+        }
+    }
+
     /**
      * Simple HTML tokenizer implementation to count HTML entities just as
      * modern browsers do.
@@ -84,13 +106,19 @@ public class TokenCounter {
     private void counter() throws IOException {
         String s;
         STATES state = STATES.DATA;// Partially dirty
+        long line = 0;
+        StringBuilder number_buffer = new StringBuilder();
         while((s = source.readLine()) != null){
+            line++;
+            long column = 0;
             short collect_number = 0;
             boolean segment_finished = false;
             int segment_length = 0;
             int correct_segment_length = 0;
             Trie.TrieNode t = entities.getRoot();
+            number_buffer.setLength(0);
             for(char c: s.toCharArray()){
+                column++;
                 switch (c){
                     case SPACE:
                     case TAB:
@@ -134,10 +162,12 @@ public class TokenCounter {
                                             && (('a' <= c && c <= 'f')
                                             || ('A' <= c && c <= 'F'))){
                                             correct_segment_length = segment_length;
+                                            number_buffer.append(c);
                                             break;
                                     }
                                     if('0' <= c && c <= '9'){
                                         correct_segment_length = segment_length;
+                                        number_buffer.append(c);
                                     }else{
                                         segment_finished = true;
                                     }
@@ -163,18 +193,28 @@ public class TokenCounter {
                     // No check that HEX or decimal number
                     // is out of Unicode codepoints
                     // Since anyway REPLACEMENT CHARACTER should be return
-                    if(!ZERO(correct_segment_length)){
-                        switch (state){
-                            case ATTRIBUTE_VALUE:
-                            case DOUBLE_QUOTES:
-                            case SINGLE_QUOTES:
-                                if(c != SEMICOLON) {
-                                    correct_segment_length = 0;
-                                    break;
+                    switch (state){
+                        case ATTRIBUTE_VALUE:
+                        case DOUBLE_QUOTES:
+                        case SINGLE_QUOTES:
+                            if(c != SEMICOLON) {
+                                correct_segment_length = 0;
+                                break;
+                            }
+                        default:
+                            if(!ZERO(correct_segment_length)) {
+                                if (c != SEMICOLON) {
+                                    error(line, column, "Entity doesn't finish with semicolon");
                                 }
-                            default:
+                                if(!ZERO(collect_number)
+                                        && !validate_number(collect_number,
+                                        number_buffer.toString())){
+                                    error(line, column, "The number is parse error");
+                                }
                                 entities_counter++;
-                        }
+                            } else if (!ZERO(collect_number)) {
+                                error(line, column, "Expected number but not found");
+                            }
                     }
                     chars_counter += segment_length - correct_segment_length;
                     entities_chars_counter += correct_segment_length;
@@ -182,20 +222,29 @@ public class TokenCounter {
                     correct_segment_length = 0;
                     segment_length = 0;
                     collect_number = 0;
+                    number_buffer.setLength(0);
                     t = entities.getRoot();
                 }
                 state = switch_state(state, c);
-            }
-            if(!ZERO(correct_segment_length)){// Might be wrong
-                switch (state){
-                    case ATTRIBUTE_VALUE:
-                    case DOUBLE_QUOTES:
-                    case SINGLE_QUOTES:
-                        correct_segment_length = 0;
-                        break;
-                    default:
+            } // Probably, I could somehow fix the copy-paste...
+            switch (state){
+                case ATTRIBUTE_VALUE:
+                case DOUBLE_QUOTES:
+                case SINGLE_QUOTES:
+                    correct_segment_length = 0;
+                    break;
+                default:
+                    if(!ZERO(correct_segment_length)) {// Might be wrong
+                        error(line, column, "Entity doesn't finish with semicolon");
+                        if(!ZERO(collect_number)
+                                && !validate_number(collect_number,
+                                number_buffer.toString())){
+                            error(line, column, "The number is parse error");
+                        }
                         entities_counter++;
-                }
+                    } else if(!ZERO(collect_number)) {
+                        error(line, column, "Expected number but not found");
+                    }
             }
             chars_counter += segment_length - correct_segment_length;
             chars_counter++;// append '\n' to summary
@@ -359,5 +408,8 @@ public class TokenCounter {
         TokenCounter tc = new TokenCounter(in);
         System.out.println(tc.chars_counter);
         System.out.println(tc.entities_counter);
+        for(String e: tc.errors){
+            System.out.println("Error: " + e);
+        }
     }
 }
