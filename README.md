@@ -1,4 +1,4 @@
-# EntityCounterApp
+# EntityCounterApp [![Build Status](https://travis-ci.org/AlexTalker/EntityCounterApp.svg?branch=master)](https://travis-ci.org/AlexTalker/EntityCounterApp)
 
 Weird English included.
 
