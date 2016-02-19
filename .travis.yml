@@ -1,4 +1,7 @@
 language: java
 jdk:
   - oraclejdk8
-script: java -jar jars/EntityCounterApp.jar html
+script:
+    - java -jar jars/EntityCounterApp.jar html
+    - java -jar jars/EntityCounterApp.jar html/t.html html/tr.html
+    - java -jar jars/EntityCounterApp.jar http://ifmo.ru http://www.soft-werke.com/
