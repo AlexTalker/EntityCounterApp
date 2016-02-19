@@ -77,7 +77,7 @@ public class TokenCounter {
         source = new BufferedReader(in);
         counter();
     }
-
+    // Prepare yourself, dirty hacks is coming!
     private static boolean ZERO(int v){
         return v == 0; }
 
