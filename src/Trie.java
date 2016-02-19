@@ -65,7 +65,9 @@ public class Trie {
     public static void main(String[] args){
         try {
             ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> map = mapper.readValue(new File(args[0]), new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> map = mapper.readValue(
+                    Trie.class.getResourceAsStream("/entities.json"),
+                    new TypeReference<Map<String, Object>>() {});
             Trie trie = new Trie(map.keySet());
             for(String key: map.keySet()){
                 TrieNode t = trie.root;

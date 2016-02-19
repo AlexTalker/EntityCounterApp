@@ -52,11 +52,21 @@ public class TokenCounterTask implements Runnable {
     }
 
     private void print(String s) {
-        out.append(String.format("%s: %s\n", path, s));
+        out.append(String.format("%s\n", s));
     }
+
+    //* Simple synchronized printf wapper
+    private static synchronized void printf(String format, Object... args){
+        synchronized (System.out){
+            System.out.printf(format, args);
+        }
+    }
+
     @Override
     public void run() {
         long start = System.currentTimeMillis();
+        printf("Start handle source %s ...\n", path);
+        print(String.format("<===> %s <===>", path));
         try {
             URL url;
             try {
@@ -64,6 +74,7 @@ public class TokenCounterTask implements Runnable {
             } catch (MalformedURLException e) {
                 File file = new File(path);
                 if(file.isDirectory()){
+                    printf("%s is a directory, walk through...\n", path);
                     DirectoryVisitor visitor = new DirectoryVisitor();
                     Files.walkFileTree(file.toPath(), visitor);
                     try {
@@ -83,9 +94,7 @@ public class TokenCounterTask implements Runnable {
             try(InputStream in = url.openStream()) { // This will fail on HTTP connections either than 200 OK
                 TokenCounter tokenCounter = new TokenCounter(in);
                 print(tokenCounter.toString());
-                for(String error: tokenCounter.errors){
-                    print(error);
-                }
+                tokenCounter.errors.forEach(this::print);
             }
         } catch (SecurityException error) {
             print("Fail because no access to read the file or directory.");
@@ -123,7 +132,7 @@ public class TokenCounterTask implements Runnable {
                 task.get();
             }
         }
-        finally { // This is repetative but required to successful finish.
+        finally { // This is repetitive but required to successful finish.
             hook.run();
         }
 

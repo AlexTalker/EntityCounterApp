@@ -18,7 +18,9 @@ public class TokenCounter {
         ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> map = null;
         try {
-            map = mapper.readValue(new File("entities.json"), new TypeReference<Map<String, Object>>() {});
+            map = mapper.readValue(
+                    TokenCounter.class.getResourceAsStream("/entities.json"),
+                    new TypeReference<Map<String, Object>>() {});
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -36,9 +38,11 @@ public class TokenCounter {
 
     private final static short ASCII_DIGIT = 0b01;
     private final static short ASCII_HEX_DIGIT = 0b10;
-
+/* HTML5 Tokenizer states, names not exactly like in standard
+   and present only required ones
+ */
     private enum STATES{
-        DATA, OPEN_TAG,// TODO: <!-- ... -->
+        DATA, OPEN_TAG,
         TAG_NAME, BOGUS_COMMENT,
         MARKUP_DECLARATION, COMMENT_START,
         COMMENT, COMMENT_END_DASH, COMMENT_END,
@@ -75,13 +79,14 @@ public class TokenCounter {
     }
 
     private static boolean ZERO(int v){
-        return v == 0;
-    }
+        return v == 0; }
 
+    //* Dirty implementation of parse error collecting
     private void error(long line, long column, String s){
-        errors.add(String.format("[parse error] %d:%d %s", line, column, s));
+        errors.add(String.format("%d:%d [parse error] %s", line, column, s));
     }
 
+    //* Check whereath number is parse error or not
     private boolean validate_number(int collect_numbers, String number){
         try{
             int n;
